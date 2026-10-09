@@ -1,0 +1,4 @@
+# Claude Code writes these on load
+.claude-plugin/types/
+tsconfig.json
+*.bak
