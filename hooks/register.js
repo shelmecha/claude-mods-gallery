@@ -1,5 +1,28 @@
+import { NF_SETS, NF_VERSION } from './nerdfont-data.js'
+
 const noop = () => {}
 let picked = 'md'
+
+// Nerd Font directory: set filter, name search, page, last copy
+const nf = { set: 'all', query: '', page: 0, copied: null }
+const NF_ROWS = 8, NF_SLOT = 2, NF_GAP = 3
+let nfAll, nfCount
+function nfGlyphs() {
+  if (nfAll) return nfAll
+  nfAll = []
+  nfCount = {}
+  for (const [set, data] of Object.entries(NF_SETS)) {
+    const parts = data.split(' ')
+    nfCount[set] = parts.length / 2
+    for (let i = 0; i < parts.length; i += 2)
+      nfAll.push({ set, name: parts[i + 1], id: `${set}-${parts[i + 1]}`, hex: parts[i].toUpperCase(), char: String.fromCodePoint(parseInt(parts[i], 16)) })
+  }
+  return nfAll
+}
+function nfFilter() {
+  const q = nf.query.trim().toLowerCase().replace(/^u\+/, '')
+  return nfGlyphs().filter((g) => (nf.set === 'all' || g.set === nf.set) && (!q || g.id.includes(q) || g.hex.toLowerCase() === q))
+}
 
 const DEFAULT_COLOR = 0x01000000
 function cellsOf(rows) {
@@ -32,6 +55,23 @@ export function register(on) {
     if (e.requestId !== 'gallery') return next(e)
     const { Box, Text, Button, Input, Select, Link, Markdown, Code, Raster, Image, Svg, Client } = $.ui.resolve(e)
     const head = (t) => Text({ bold: true, color: 'claude', children: [t] })
+    const redraw = () => $.ui.invalidate('ui.render')
+    const cols = Math.max(1, Math.floor(((e.props.bodyColumns ?? 80) - 2 + NF_GAP) / (NF_SLOT + NF_GAP)))
+    const perPage = cols * NF_ROWS
+    const found = nfFilter()
+    const pages = Math.max(1, Math.ceil(found.length / perPage))
+    nf.page = Math.min(nf.page, pages - 1)
+    const shown = found.slice(nf.page * perPage, (nf.page + 1) * perPage)
+    const copy = async (g, press) => {
+      const r = await $.ui.copy({ text: g.char, surface: press.surface })
+      nf.copied = { g, ...r }
+      redraw()
+    }
+    const glyphRows = []
+    for (let i = 0; i < shown.length; i += cols)
+      glyphRows.push(Box({ flexDirection: 'row', columnGap: NF_GAP, children: shown.slice(i, i + cols).map((g) =>
+        Box({ width: NF_SLOT, children: [Button({ key: `nf:${g.id}`, label: g.char, plain: true, onPress: (p) => copy(g, p) })] })) }))
+    const c = nf.copied
     return Box({
       flexDirection: 'column',
       gap: 1,
@@ -100,6 +140,29 @@ export function register(on) {
             ? Svg({ alt: 'three bars', width: 120, height: 60,
                 source: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60"><rect x="10" y="40" width="20" height="20" fill="#2e7d32"/><rect x="50" y="25" width="20" height="35" fill="#f9a825"/><rect x="90" y="5" width="20" height="55" fill="#c62828"/></svg>' })
             : Text({ dimColor: true, children: ['Svg draws in the Desktop app, not the terminal'] }),
+        ] }),
+        Box({ flexDirection: 'column', gap: 1, children: [
+          head(`NERD FONT ICONS (Nerd Fonts ${NF_VERSION})`),
+          Text({ dimColor: true, children: ['Click a glyph, or Tab to it and press Enter, to copy it. Glyphs show as boxes unless the terminal uses a Nerd Font.'] }),
+          Box({ flexDirection: 'row', columnGap: 3, flexWrap: 'wrap', children: [
+            Select({ key: 'nf-set', label: 'Set', value: nf.set,
+              options: [{ value: 'all', label: `All (${nfGlyphs().length})` },
+                ...Object.keys(NF_SETS).map((k) => ({ value: k, label: `${k} (${nfCount[k]})` }))],
+              onSelect: (v) => { nf.set = v; nf.page = 0; redraw() } }),
+            Input({ key: 'nf-search', label: 'Search', placeholder: 'name or hex code', value: nf.query, submitLabel: 'search',
+              onInput: (v) => { nf.query = v; nf.page = 0; redraw() }, onSubmit: (v) => { nf.query = v; nf.page = 0; redraw() } }),
+          ] }),
+          Box({ flexDirection: 'row', columnGap: 2, children: [
+            Button({ key: 'nf-prev', label: 'Prev', dimColor: nf.page === 0, onPress: () => { nf.page = Math.max(0, nf.page - 1); redraw() } }),
+            Button({ key: 'nf-next', label: 'Next page', dimColor: nf.page >= pages - 1, onPress: () => { nf.page = Math.min(pages - 1, nf.page + 1); redraw() } }),
+            Text({ dimColor: true, children: [`page ${nf.page + 1} of ${pages} · ${found.length} icons`] }),
+          ] }),
+          !c ? Text({ dimColor: true, children: ['Nothing copied yet'] })
+            : c.isCopied ? Text({ color: 'success', children: [`Copied  ${c.g.char}  ${c.g.id}  U+${c.g.hex}`] })
+            : Text({ dimColor: true, children: [`Not copied (${c.reason}): ${c.g.char}  ${c.g.id}  U+${c.g.hex}`] }),
+          shown.length
+            ? Box({ flexDirection: 'column', rowGap: 1, paddingX: 1, children: glyphRows })
+            : Text({ dimColor: true, children: ['No icon matches'] }),
         ] }),
       ],
     })

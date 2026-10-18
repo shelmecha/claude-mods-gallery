@@ -20,10 +20,14 @@ fullscreen terminal and scroll inside the pane.
 - `Box` with all 10 border styles
 - `Button`, `Input` and `Select`
 - `Raster`, `Image`, `Client` and `Svg`
+- A Nerd Font icon directory: all 10,995 glyphs of Nerd Fonts 3.5.1, with a set filter, a name or hex code search and pages. Click a glyph, or move to it with Tab and press Enter, to copy it to the clipboard
 
 ## Notes
 
 - The controls (Save, Next, Skip, Title, Format) do nothing. They show how each control looks.
+- The icons show as boxes unless your terminal uses a [Nerd Font](https://www.nerdfonts.com).
+- The copy uses a clipboard tool on your machine or the terminal's OSC 52 write. Some terminals and tmux block OSC 52.
+- The icon data is `hooks/nerdfont-data.js`. To build it again, download [`glyphnames.json`](https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/glyphnames.json) and run `node scripts/build-nerdfont-data.mjs <path to glyphnames.json>`.
 - Colors use theme keys, so they follow your theme. The `Raster` and `Image` use fixed colors.
 - `Image` draws in kitty 0.28+ and Ghostty, and not inside tmux. Other terminals show dim alt text.
 - `Svg` draws in the Desktop app only. The terminal shows a note.
